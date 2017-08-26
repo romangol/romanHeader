@@ -81,6 +81,11 @@ private:
 #define ROTL16(x) (((x)<<16)|((x)>>16))
 #define ROTL24(x) (((x)<<24)|((x)>>8))
 
+#define u128_to_u8(t128, c8) _mm_storeu_si128( (uint128 *)(c8), (t128) );
+#define u8_to_u128(c8, t128) (t128) = _mm_loadu_si128( (uint128 *)(c8) );
+
+
+
 #define forloop(i, start, end) for ( size_t (i) = (start); (i) < (end); ++(i) )
 #define forstep(i, start, end, step) for ( size_t (i) = (start); (i) < (end); (i) += (step) )
 
