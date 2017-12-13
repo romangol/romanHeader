@@ -24,12 +24,35 @@ private:
 	NonCopyable & operator = (NonCopyable const &);
 };
 
-/*
-* Useful thing.
-*/
 #ifndef lenof
 #define lenof(x) ( (sizeof((x))) / (sizeof(*(x))))
 #endif
+
+
+/* ------------------------------- rotation ------------------------------- */
+	
+/* The masking of the right shift is needed to allow n == 0 (using
+   just 32 - n and 64 - n results in undefined behaviour). Most uses
+   of these macros use a constant and non-zero rotation count. */
+#define ROTL32I (x, n) (((x)<<(n)) | ((x)>>((-(n)&31))))
+#define ROTL64I (x, n) (((x)<<(n)) | ((x)>>((-(n))&63)))
+
+#define ROTL32(x, n) (SHL((x), (n)) | ((x) >> (32 - (n))))
+#define ROTL64(x, n) (u8)( ((x) << (n)) | ( (x) >> (64 - (n))) )
+
+#define ROL32(a,b) (((a) << (b)) | ((a) >> (32-(b))))
+#define ROR32(a,b) (((a) >> (b)) | ((a) << (32-(b))))
+
+#define ROTL8(x) (((x)<<8)|((x)>>24))
+#define ROTL16(x) (((x)<<16)|((x)>>16))
+#define ROTL24(x) (((x)<<24)|((x)>>8))
+
+#define SHL32(x,n) (((x) & 0xFFFFFFFF) << (n))
+
+/* ------------------------------- rotation end ------------------------------- */
+	
+	
+/* ------------------------------- packing and unpacking begin ------------------------------- */
 
 #define GET_32BIT_LSB_FIRST(cp) \
   (((u4)(u1)(cp)[0]) | \
@@ -75,21 +98,9 @@ private:
   (cp)[0] = (u1)((value) >> 8), \
   (cp)[1] = (u1)(value) )
 
-#define ROL32(a,b) (((a) << (b)) | ((a) >> (32-(b))))
-#define ROR32(a,b) (((a) >> (b)) | ((a) << (32-(b))))
-#define ROTL8(x) (((x)<<8)|((x)>>24))
-#define ROTL16(x) (((x)<<16)|((x)>>16))
-#define ROTL24(x) (((x)<<24)|((x)>>8))
 
 #define u128_to_u8(t128, c8) _mm_storeu_si128( (uint128 *)(c8), (t128) );
 #define u8_to_u128(c8, t128) (t128) = _mm_loadu_si128( (uint128 *)(c8) );
-
-
-
-#define forloop(i, start, end) for ( size_t (i) = (start); (i) < (end); ++(i) )
-#define forstep(i, start, end, step) for ( size_t (i) = (start); (i) < (end); (i) += (step) )
-
-#define bitswap(L, R, n, mask) ( swap = mask & ( (R >> n) ^ L ), R ^= swap << n, L ^= swap)
 
 #ifdef CPU_BIGENDIAN
 
@@ -113,48 +124,115 @@ private:
 #endif
 
 
-/*
- *rotate shift left marco definition
- *
- */
-#define SHL(x,n) (((x) & 0xFFFFFFFF) << n)
-#define ROTL(x,n) (SHL((x),n) | ((x) >> (32 - n)))
+/* Reads a 64-bit integer, in network, big-endian, byte order */
+#define READ_UINT64(p)				\
+(  (((uint64_t) (p)[0]) << 56)			\
+ | (((uint64_t) (p)[1]) << 48)			\
+ | (((uint64_t) (p)[2]) << 40)			\
+ | (((uint64_t) (p)[3]) << 32)			\
+ | (((uint64_t) (p)[4]) << 24)			\
+ | (((uint64_t) (p)[5]) << 16)			\
+ | (((uint64_t) (p)[6]) << 8)			\
+ |  ((uint64_t) (p)[7]))
 
-#define rotl(x, c) ( (x << c) | (x >> (32-c)) )
-#define rotl28(x, c) ( ( (x << c) | (x >> (28-c)) ) & 0x0FFFFFFF)
+#define WRITE_UINT64(p, i)			\
+do {						\
+  (p)[0] = ((i) >> 56) & 0xff;			\
+  (p)[1] = ((i) >> 48) & 0xff;			\
+  (p)[2] = ((i) >> 40) & 0xff;			\
+  (p)[3] = ((i) >> 32) & 0xff;			\
+  (p)[4] = ((i) >> 24) & 0xff;			\
+  (p)[5] = ((i) >> 16) & 0xff;			\
+  (p)[6] = ((i) >> 8) & 0xff;			\
+  (p)[7] = (i) & 0xff;				\
+} while(0)
 
+/* Reads a 32-bit integer, in network, big-endian, byte order */
+#define READ_UINT32(p)				\
+(  (((uint32_t) (p)[0]) << 24)			\
+ | (((uint32_t) (p)[1]) << 16)			\
+ | (((uint32_t) (p)[2]) << 8)			\
+ |  ((uint32_t) (p)[3]))
 
-/*
+#define WRITE_UINT32(p, i)			\
+do {						\
+  (p)[0] = ((i) >> 24) & 0xff;			\
+  (p)[1] = ((i) >> 16) & 0xff;			\
+  (p)[2] = ((i) >> 8) & 0xff;			\
+  (p)[3] = (i) & 0xff;				\
+} while(0)
 
-static uint32_t rol(const uint32_t value, const size_t bits)
-{
-    return (value << bits) | (value >> (32 - bits));
-}
+/* Analogous macros, for 24 and 16 bit numbers */
+#define READ_UINT24(p)				\
+(  (((uint32_t) (p)[0]) << 16)			\
+ | (((uint32_t) (p)[1]) << 8)			\
+ |  ((uint32_t) (p)[2]))
 
+#define WRITE_UINT24(p, i)			\
+do {						\
+  (p)[0] = ((i) >> 16) & 0xff;			\
+  (p)[1] = ((i) >> 8) & 0xff;			\
+  (p)[2] = (i) & 0xff;				\
+} while(0)
 
-void outputChar(const_buf text, size_t len)
-{
-	for (size_t i = 0; i < len; ++i)
-	{
-		printf("0x%02x, ", text[i]);
-		if (i % 16 == 15)
-			puts("");
-	}
-	puts("");
-}
+#define READ_UINT16(p)				\
+(  (((uint32_t) (p)[0]) << 8)			\
+ |  ((uint32_t) (p)[1]))
 
-void outputDword(uint32_t * text, size_t len)
-{
-	for (size_t i = 0; i < len; ++i)
-	{
-		printf("0x%08x ", text[i]);
-		if (i % 4 == 3)
-			puts("");
-	}
+#define WRITE_UINT16(p, i)			\
+do {						\
+  (p)[0] = ((i) >> 8) & 0xff;			\
+  (p)[1] = (i) & 0xff;				\
+} while(0)
 
-	puts("");
-}
-*/
+/* And the other, little-endian, byteorder */
+#define LE_READ_UINT64(p)			\
+(  (((uint64_t) (p)[7]) << 56)			\
+ | (((uint64_t) (p)[6]) << 48)			\
+ | (((uint64_t) (p)[5]) << 40)			\
+ | (((uint64_t) (p)[4]) << 32)			\
+ | (((uint64_t) (p)[3]) << 24)			\
+ | (((uint64_t) (p)[2]) << 16)			\
+ | (((uint64_t) (p)[1]) << 8)			\
+ |  ((uint64_t) (p)[0]))
+
+#define LE_WRITE_UINT64(p, i)			\
+do {						\
+  (p)[7] = ((i) >> 56) & 0xff;			\
+  (p)[6] = ((i) >> 48) & 0xff;			\
+  (p)[5] = ((i) >> 40) & 0xff;			\
+  (p)[4] = ((i) >> 32) & 0xff;			\
+  (p)[3] = ((i) >> 24) & 0xff;			\
+  (p)[2] = ((i) >> 16) & 0xff;			\
+  (p)[1] = ((i) >> 8) & 0xff;			\
+  (p)[0] = (i) & 0xff;				\
+} while (0)
+
+#define LE_READ_UINT32(p)			\
+(  (((uint32_t) (p)[3]) << 24)			\
+ | (((uint32_t) (p)[2]) << 16)			\
+ | (((uint32_t) (p)[1]) << 8)			\
+ |  ((uint32_t) (p)[0]))
+
+#define LE_WRITE_UINT32(p, i)			\
+do {						\
+  (p)[3] = ((i) >> 24) & 0xff;			\
+  (p)[2] = ((i) >> 16) & 0xff;			\
+  (p)[1] = ((i) >> 8) & 0xff;			\
+  (p)[0] = (i) & 0xff;				\
+} while(0)
+
+/* Analogous macros, for 16 bit numbers */
+#define LE_READ_UINT16(p)			\
+  (  (((uint32_t) (p)[1]) << 8)			\
+     |  ((uint32_t) (p)[0]))
+
+#define LE_WRITE_UINT16(p, i)			\
+  do {						\
+    (p)[1] = ((i) >> 8) & 0xff;			\
+    (p)[0] = (i) & 0xff;			\
+  } while(0)
+
 
 /* from libsodium */
 #define LOAD64_LE(SRC) load64_le(SRC)
@@ -298,6 +376,62 @@ store32_be(uint8_t dst[4], uint32_t w)
     dst[0] = (uint8_t) w;
 #endif
 }
+/* ------------------------------- packing and unpacking end ------------------------------- */
+	
+	
+	
+	
+/* ------------------------------- loop begin ------------------------------- */
+
+#define forloop(i, start, end) for ( size_t (i) = (start); (i) < (end); ++(i) )
+#define forstep(i, start, end, step) for ( size_t (i) = (start); (i) < (end); (i) += (step) )
+
+
+/* Macro to make it easier to loop over several blocks. */
+#define FOR_BLOCKS(length, dst, src, blocksize)	\
+  assert( !((length) % (blocksize)));           \
+  for (; (length); ((length) -= (blocksize),	\
+		  (dst) += (blocksize),		\
+		  (src) += (blocksize)) )
+
+/* ------------------------------- loop end ------------------------------- */
+	
+/* ------------------------------- arithmatic begin ------------------------------- */
+#define bitswap(L, R, n, mask) ( swap = mask & ( (R >> n) ^ L ), R ^= swap << n, L ^= swap)
+/* ------------------------------- arithmatic end ------------------------------- */
+
+/*
+
+static uint32_t rol(const uint32_t value, const size_t bits)
+{
+    return (value << bits) | (value >> (32 - bits));
+}
+
+
+void outputChar(const_buf text, size_t len)
+{
+	for (size_t i = 0; i < len; ++i)
+	{
+		printf("0x%02x, ", text[i]);
+		if (i % 16 == 15)
+			puts("");
+	}
+	puts("");
+}
+
+void outputDword(uint32_t * text, size_t len)
+{
+	for (size_t i = 0; i < len; ++i)
+	{
+		printf("0x%08x ", text[i]);
+		if (i % 4 == 3)
+			puts("");
+	}
+
+	puts("");
+}
+*/
+
 
 
 #endif // end of romangol.h
