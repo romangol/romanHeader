@@ -401,14 +401,12 @@ store32_be(uint8_t dst[4], uint32_t w)
 /* ------------------------------- arithmatic end ------------------------------- */
 
 /*
-
 static uint32_t rol(const uint32_t value, const size_t bits)
 {
     return (value << bits) | (value >> (32 - bits));
 }
 
-
-void outputChar(const_buf text, size_t len)
+static void outputChar(const_buf text, size_t len)
 {
 	for (size_t i = 0; i < len; ++i)
 	{
@@ -419,7 +417,7 @@ void outputChar(const_buf text, size_t len)
 	puts("");
 }
 
-void outputDword(uint32_t * text, size_t len)
+static void outputDword(uint32_t * text, size_t len)
 {
 	for (size_t i = 0; i < len; ++i)
 	{
@@ -431,7 +429,6 @@ void outputDword(uint32_t * text, size_t len)
 	puts("");
 }
 */
-
 
 
 #endif // end of romangol.h
